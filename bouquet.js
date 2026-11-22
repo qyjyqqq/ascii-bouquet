@@ -1,16 +1,14 @@
 const canvas = document.getElementById("canvas");
 const ctx = canvas.getContext("2d");
 
-// Color palettes matching the creator's code in the video
-const GOLDS  = ["#fff79a", "#ffe875", "#ffd54f", "#ffca28"];
-const CYANS  = ["#80deea", "#4dd0e1", "#26c6da", "#b2ebf2"];
-const PINKS  = ["#f8bbd0", "#f48fb1", "#ff80ab", "#fce4ec"];
-const GREENS = ["#a5d6a7", "#81c784", "#66bb6a", "#c8e6c9"];
-const WHITES = ["#ffffff", "#dce4f2", "#9fb3c8", "#627d98"];
-
+// Exact color constants visible in the creator's bouquet.js
+const GOLDS        = ["#fff79a", "#ffe875", "#ffd54f", "#ffca28"];
+const CYANS        = ["#80deea", "#4dd0e1", "#26c6da", "#b2ebf2"];
+const PINKS        = ["#f8bbd0", "#f48fb1", "#ff80ab", "#fce4ec"];
+const GREENS       = ["#a5d6a7", "#81c784", "#66bb6a", "#80cbc4"];
+const WHITES       = ["#ffffff", "#e2e8f0", "#94a3b8", "#64748b"];
 const HEART_COLORS = [...PINKS, "#ffffff"];
 
-// ASCII heart sprites matching the floating hearts in the video
 const BIG_HEART = [
   " /\\ /\\ ",
   "(  V  )",
@@ -26,25 +24,11 @@ const MID_HEART = [
 ];
 
 const MINI_HEART = ["<3"];
-
-// Cute curly-haired character holding the bouquet at the bottom
-const HOLDER_SPRITE = [
-  "   .-\"\"\"-.   ",
-  "  / .===. \\  ",
-  " ( ( o o ) ) ",
-  "  \\ ( <3 ) / ",
-  "   '-...-'   "
-];
+const BURST = ["+", "*", "·", "✦"];
 
 let width = 0;
 let height = 0;
-let dpr = Math.min(window.devicePixelRatio || 1, 2);
-
-// Grid dimensions (character cells)
-const COLS = 88;
-const ROWS = 54;
-let cellW = 10;
-let cellH = 16;
+const dpr = Math.min(window.devicePixelRatio || 1, 2);
 
 function resize() {
   width = window.innerWidth;
@@ -54,222 +38,198 @@ function resize() {
   canvas.style.width = `${width}px`;
   canvas.style.height = `${height}px`;
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-
-  // Scale character grid cleanly to fit any screen size
-  const maxCellH = Math.floor((height * 0.9) / ROWS);
-  const maxCellW = Math.floor((width * 0.94) / COLS);
-  cellH = Math.max(10, Math.min(18, maxCellH, Math.floor(maxCellW * 1.65)));
-  cellW = cellH * 0.62;
 }
-
 window.addEventListener("resize", resize);
 resize();
 
-function rand(min, max) {
-  return min + Math.random() * (max - min);
-}
+const rand = (min, max) => min + Math.random() * (max - min);
+const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 
-function pick(arr) {
-  return arr[Math.floor(Math.random() * arr.length)];
-}
-
-// Build the structured ASCII bouquet scene on a coordinate grid
-const sceneCells = [];
+// Scene nodes built from 3D parametric curves (matching buildScene() in video)
+let sceneNodes = [];
 
 function buildScene() {
-  sceneCells.length = 0;
-  const cx = Math.floor(COLS / 2);
+  sceneNodes = [];
 
-  // Helper to add a character cell with reveal order (rank) & color group
-  function addCell(gx, gy, char, palette, rank, kind = "wrap") {
-    sceneCells.push({
-      gx,
-      gy,
+  function pushNode(x, y, z, char, palette, rank, swayAmp = 1.6) {
+    sceneNodes.push({
+      x,
+      y,
+      z,
       char,
+      color: pick(palette),
       palette,
-      baseColor: pick(palette),
-      rank, // controls bottom-to-top bloom timing
-      kind,
+      rank,
+      swayAmp,
       phase: rand(0, Math.PI * 2),
-      speed: rand(0.03, 0.07)
+      freq: rand(0.025, 0.05)
     });
   }
 
-  // 1. Wrapping Paper Cone & Ribbed Folds (rows 18 to 39)
-  const coneTop = 17;
-  const coneBot = 39;
+  // 1. Central Ribbon Knot & Lower Wrapper Cone (y: +15 to +95)
+  for (let i = 0; i < 420; i++) {
+    const t = Math.random(); // 0 = knot, 1 = wide upper rim
+    const y = 88 - t * 145;
+    // Curved cone silhouette with organic tissue folds
+    const baseRadius = 6 + Math.pow(t, 0.82) * 112;
+    const angle = rand(-Math.PI, 0); // front-facing half-cone
+    const fold = Math.sin(angle * 7 + t * 4) * (6 * t);
+    const r = baseRadius + fold;
 
-  for (let y = coneTop; y <= coneBot; y++) {
-    // Progress from bottom knot (0) to wide top rim (1)
-    const t = (coneBot - y) / (coneBot - coneTop);
-    // Flared cone silhouette with ruffled upper edges
-    const ruffle = Math.sin(t * Math.PI * 3) * 1.6;
-    const halfSpan = Math.round(2 + Math.pow(t, 0.85) * 26 + ruffle);
+    const x = Math.cos(angle) * r;
+    const z = Math.sin(angle) * r * 0.45;
 
-    for (let dx = -halfSpan; dx <= halfSpan; dx++) {
-      const gx = cx + dx;
-      const normX = halfSpan === 0 ? 0 : dx / halfSpan;
-      const absNorm = Math.abs(normX);
+    // Horizontal scanline / crease shading like the video
+    let char = "-";
+    let palette = WHITES;
+    const edgeFactor = Math.abs(Math.cos(angle));
 
-      // Leave hollow V-pocket at the top center where flowers sit
-      if (y < 24 && absNorm < 0.58 * (1 - (y - coneTop) / 9)) {
-        continue;
-      }
-
-      // Create pleated paper folds radiating from the knot
-      const foldWave = Math.sin(normX * Math.PI * 5);
-      let char = ".";
-      let palette = WHITES;
-
-      if (absNorm > 0.92) {
-        char = dx < 0 ? "\\" : "/";
-        palette = WHITES;
-      } else if (foldWave > 0.55) {
-        char = dx < 0 ? "\\" : "/";
-        palette = CYANS;
-      } else if (foldWave < -0.55) {
-        char = ":";
-        palette = WHITES;
-      } else if ((gx + y) % 2 === 0) {
-        char = "-";
-        palette = WHITES;
-      } else {
-        char = "=";
-        palette = CYANS;
-      }
-
-      // Reveal flows smoothly from bottom knot (t=0) upward (t=1)
-      const rank = t * 55 + absNorm * 8;
-      addCell(gx, y, char, palette, rank, "wrap");
+    if (edgeFactor > 0.93) {
+      char = x < 0 ? "\\" : "/";
+      palette = WHITES;
+    } else if (Math.sin(angle * 7) > 0.65) {
+      char = ":";
+      palette = CYANS;
+    } else if (t > 0.85) {
+      char = "~";
+      palette = WHITES;
+    } else {
+      char = Math.random() < 0.55 ? "-" : "=";
+      palette = Math.random() < 0.7 ? WHITES : CYANS;
     }
+
+    pushNode(x, y, z, char, palette, t * 55 + rand(0, 8), 0.9 + t * 1.2);
   }
 
-  // 2. Green Foliage & Stems peeking out around the blooms
-  for (let i = 0; i < 150; i++) {
-    const angle = rand(-Math.PI * 0.92, -Math.PI * 0.08);
-    const radius = rand(7, 25);
-    const gx = Math.round(cx + Math.cos(angle) * radius * 1.25);
-    const gy = Math.round(22 + Math.sin(angle) * radius * 0.72);
-    const leafChars = ["/", "\\", "|", "~", "*", ";"];
-    addCell(gx, gy, pick(leafChars), GREENS, 45 + rand(0, 25), "leaf");
+  // 2. Ruffled Tissue Paper Wings behind the blooms (top & sides)
+  for (let i = 0; i < 240; i++) {
+    const u = rand(-1, 1);
+    const v = rand(0, 1);
+    const x = u * (135 + Math.sin(v * Math.PI) * 35);
+    const y = -55 - v * 95 + Math.abs(u) * 28 + Math.sin(u * 9) * 8;
+    const z = -25 - v * 20;
+    const char = v > 0.82 ? "^" : Math.random() < 0.5 ? ":" : ".";
+    pushNode(x, y, z, char, WHITES, 42 + v * 25 + Math.abs(u) * 10, 1.8);
   }
 
-  // 3. Sculpted ASCII Rose & Flower Heads (layered blooms in Gold, Cyan, Pink)
-  const flowers = [
-    { x: cx,      y: 12, rx: 6.5, ry: 4.2, palette: GOLDS,  delay: 68 },
-    { x: cx - 11, y: 14, rx: 6.0, ry: 3.8, palette: CYANS,  delay: 62 },
-    { x: cx + 11, y: 14, rx: 6.0, ry: 3.8, palette: PINKS,  delay: 62 },
-    { x: cx - 19, y: 18, rx: 5.5, ry: 3.5, palette: GOLDS,  delay: 56 },
-    { x: cx + 19, y: 18, rx: 5.5, ry: 3.5, palette: CYANS,  delay: 56 },
-    { x: cx - 6,  y: 18, rx: 5.8, ry: 3.6, palette: PINKS,  delay: 58 },
-    { x: cx + 6,  y: 18, rx: 5.8, ry: 3.6, palette: GOLDS,  delay: 58 },
-    { x: cx,      y: 22, rx: 5.2, ry: 3.2, palette: CYANS,  delay: 50 },
-    { x: cx - 13, y: 22, rx: 4.8, ry: 3.0, palette: PINKS,  delay: 52 },
-    { x: cx + 13, y: 22, rx: 4.8, ry: 3.0, palette: GOLDS,  delay: 52 },
-    { x: cx - 5,  y: 8,  rx: 4.5, ry: 2.8, palette: PINKS,  delay: 74 },
-    { x: cx + 5,  y: 8,  rx: 4.5, ry: 2.8, palette: CYANS,  delay: 74 }
+  // 3. Stems & Greenery Foliage radiating into the blooms
+  for (let i = 0; i < 180; i++) {
+    const t = Math.random();
+    const spread = rand(-1.05, 1.05);
+    const x = spread * (15 + t * 115);
+    const y = 75 - t * 185;
+    const z = rand(-10, 15);
+    const char = Math.abs(spread) > 0.75 ? pick(["/", "\\", "~", "*"]) : "|";
+    pushNode(x, y, z, char, GREENS, 25 + t * 45, 1.4);
+  }
+
+  // 4. Parametric 3D Rose & Flower Blooms (layered polar rose curves)
+  const blooms = [
+    { cx: 0,    cy: -135, rx: 36, ry: 26, petals: 5, palette: GOLDS, delay: 72 },
+    { cx: -52,  cy: -115, rx: 33, ry: 24, petals: 5, palette: CYANS, delay: 66 },
+    { cx: 52,   cy: -115, rx: 33, ry: 24, petals: 5, palette: PINKS, delay: 66 },
+    { cx: -98,  cy: -75,  rx: 32, ry: 23, petals: 6, palette: GOLDS, delay: 60 },
+    { cx: 98,   cy: -75,  rx: 32, ry: 23, petals: 6, palette: CYANS, delay: 60 },
+    { cx: -32,  cy: -78,  rx: 34, ry: 24, petals: 5, palette: PINKS, delay: 64 },
+    { cx: 32,   cy: -78,  rx: 34, ry: 24, petals: 5, palette: GOLDS, delay: 64 },
+    { cx: 0,    cy: -42,  rx: 30, ry: 21, petals: 5, palette: CYANS, delay: 56 },
+    { cx: -68,  cy: -40,  rx: 28, ry: 20, petals: 5, palette: PINKS, delay: 58 },
+    { cx: 68,   cy: -40,  rx: 28, ry: 20, petals: 5, palette: GOLDS, delay: 58 },
+    { cx: -26,  cy: -158, rx: 25, ry: 18, petals: 4, palette: PINKS, delay: 78 },
+    { cx: 26,   cy: -158, rx: 25, ry: 18, petals: 4, palette: CYANS, delay: 78 }
   ];
 
-  flowers.forEach((f) => {
-    for (let dy = -Math.ceil(f.ry); dy <= Math.ceil(f.ry); dy++) {
-      for (let dx = -Math.ceil(f.rx); dx <= Math.ceil(f.rx); dx++) {
-        const dist = Math.sqrt((dx / f.rx) ** 2 + (dy / f.ry) ** 2);
-        if (dist <= 1.0) {
-          let char;
-          if (dist < 0.28) {
-            char = "@";
-          } else if (dist < 0.58) {
-            char = dx < 0 ? "(" : ")";
-          } else if (dist < 0.82) {
-            char = dy < 0 ? "~" : "=";
-          } else {
-            char = "*";
-          }
-          addCell(
-            Math.round(f.x + dx),
-            Math.round(f.y + dy),
-            char,
-            f.palette,
-            f.delay + dist * 10,
-            "flower"
-          );
-        }
+  blooms.forEach((b) => {
+    // Draw 3 concentric petal rings per flower using polar rose math
+    for (let ring = 0.25; ring <= 1.0; ring += 0.25) {
+      const steps = Math.floor(26 * ring) + 10;
+      for (let s = 0; s < steps; s++) {
+        const theta = (s / steps) * Math.PI * 2 + ring;
+        // Polar rose curve modulation creates sculpted overlapping petals
+        const lobe = 0.72 + 0.28 * Math.cos(b.petals * theta + ring * 2);
+        const px = b.cx + Math.cos(theta) * b.rx * ring * lobe;
+        const py = b.cy + Math.sin(theta) * b.ry * ring * lobe;
+        const pz = 20 + (1 - ring) * 18;
+
+        let char;
+        if (ring <= 0.3) char = "@";
+        else if (ring <= 0.55) char = Math.cos(theta) < 0 ? "(" : ")";
+        else if (ring <= 0.8) char = "=";
+        else char = "*";
+
+        pushNode(px, py, pz, char, b.palette, b.delay + ring * 12, 2.1);
       }
     }
   });
 
-  // 4. Cute Character Holding the Knot (rows 40 to 44)
-  HOLDER_SPRITE.forEach((line, rIdx) => {
-    const startX = Math.floor(cx - line.length / 2);
-    for (let cIdx = 0; cIdx < line.length; cIdx++) {
-      const ch = line[cIdx];
-      if (ch !== " ") {
-        const isHeart = ch === "<" || ch === "3";
-        addCell(
-          startX + cIdx,
-          40 + rIdx,
-          ch,
-          isHeart ? PINKS : WHITES,
-          10 + rIdx * 3,
-          "holder"
-        );
-      }
+  // 5. Fluffy Cute Bear / Mascot Holding the Knot at the Bottom
+  const mascot = [
+    "    . - ~ - .    ",
+    "  (  /\\ _ /\\  )  ",
+    " (  (  o . o  )  )",
+    "  (  \\  <3  /  )  ",
+    "    ' - _ - '    "
+  ];
+
+  mascot.forEach((line, r) => {
+    for (let c = 0; c < line.length; c++) {
+      const ch = line[c];
+      if (ch === " ") continue;
+      const mx = (c - line.length / 2) * 7.5;
+      const my = 108 + r * 13;
+      const isHeart = ch === "<" || ch === "3";
+      pushNode(mx, my, 15, ch, isHeart ? PINKS : WHITES, 12 + r * 3, 0.5);
     }
   });
 
-  // 5. Caption at the Bottom (row 47)
-  const caption = "A little something for ya :3";
-  const capStartX = Math.floor(cx - caption.length / 2);
-  for (let i = 0; i < caption.length; i++) {
-    const ch = caption[i];
-    if (ch !== " ") {
-      addCell(capStartX + i, 47, ch, WHITES, 85 + i * 0.8, "text");
-    }
+  // 6. Bottom Message
+  const msg = "A little something for ya :3";
+  for (let i = 0; i < msg.length; i++) {
+    if (msg[i] === " ") continue;
+    const tx = (i - msg.length / 2) * 7.5;
+    const ty = 192;
+    pushNode(tx, ty, 0, msg[i], WHITES, 88 + i * 0.7, 0.2);
   }
 }
 
 buildScene();
 
-// Ambient floating ASCII hearts & sparkles (matching the creator's Particle class)
+// Floating ASCII Hearts & Ambient Sparkles (matching Particle class in video)
 const particles = [];
 
 function spawnParticle() {
   const cx = width / 2;
   const cy = height / 2;
   const side = Math.random() < 0.5 ? -1 : 1;
-
-  // Pick from big ASCII hearts, medium hearts, mini <3, or + sparkles
   const roll = Math.random();
+
   let art = MINI_HEART;
   let colors = HEART_COLORS;
   let vy = rand(-0.45, -0.2);
 
-  if (roll < 0.12) {
+  if (roll < 0.14) {
     art = BIG_HEART;
     colors = WHITES;
-    vy = rand(-0.3, -0.15);
-  } else if (roll < 0.28) {
+    vy = rand(-0.32, -0.15);
+  } else if (roll < 0.30) {
     art = MID_HEART;
     colors = HEART_COLORS;
-    vy = rand(-0.4, -0.2);
-  } else if (roll < 0.62) {
-    art = MINI_HEART;
-    colors = HEART_COLORS;
-  } else {
-    art = ["+"];
+    vy = rand(-0.38, -0.18);
+  } else if (roll >= 0.65) {
+    art = [pick(BURST)];
     colors = [...GOLDS, ...CYANS, ...WHITES];
-    vy = rand(-0.25, -0.05);
+    vy = rand(-0.22, -0.05);
   }
 
   particles.push({
-    x: cx + side * rand(cellW * 16, cellW * 38),
-    y: cy + rand(-cellH * 22, cellH * 22),
+    x: cx + side * rand(130, Math.min(width * 0.44, 340)),
+    y: cy + rand(-210, 200),
     art,
     color: pick(colors),
     vx: rand(-0.12, 0.12),
     vy,
     phase: rand(0, Math.PI * 2),
-    life: rand(120, 240),
+    life: rand(130, 240),
     maxLife: 240
   });
 }
@@ -280,48 +240,46 @@ function animate() {
   ctx.fillStyle = "#020308";
   ctx.fillRect(0, 0, width, height);
 
-  const gridPixelW = COLS * cellW;
-  const gridPixelH = ROWS * cellH;
-  const offsetX = (width - gridPixelW) / 2;
-  const offsetY = (height - gridPixelH) / 2;
+  const cx = width / 2;
+  const cy = height / 2 + 12;
+  // Auto-scale smoothly on smaller phone screens or large monitors
+  const scale = Math.min(width / 540, height / 520, 1.35);
 
-  ctx.font = `bold ${Math.round(cellH * 0.88)}px "Courier New", monospace`;
+  ctx.font = `bold ${Math.max(10, Math.round(13 * scale))}px "Courier New", monospace`;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
 
-  // Draw the structured ASCII bouquet with bottom-to-top reveal & shimmer wave
-  for (let i = 0; i < sceneCells.length; i++) {
-    const c = sceneCells[i];
-    if (frame < c.rank) continue;
+  // Sort back-to-front by Z depth so petals overlap naturally
+  sceneNodes.sort((a, b) => a.z - b.z);
 
-    const age = frame - c.rank;
-    const revealAlpha = Math.min(1, age / 18);
+  for (let i = 0; i < sceneNodes.length; i++) {
+    const n = sceneNodes[i];
+    if (frame < n.rank) continue;
 
-    // Subtle upward light wave & character shimmer
-    const wave = Math.sin(frame * 0.06 + c.gy * 0.25 + c.gx * 0.12);
-    const shimmerAlpha = 0.72 + 0.28 * wave;
+    const age = frame - n.rank;
+    const revealAlpha = Math.min(1, age / 20);
 
-    // Occasionally cycle flower/wrap highlights
-    if (c.kind === "flower" && Math.sin(frame * c.speed + c.phase) > 0.96) {
-      c.baseColor = pick(c.palette);
-    }
+    // Gentle 3D sway & shimmer wave across the bouquet
+    const swayX = Math.sin(frame * n.freq + n.phase) * n.swayAmp;
+    const swayY = Math.cos(frame * n.freq * 0.8 + n.phase) * (n.swayAmp * 0.5);
+    const wave = 0.75 + 0.25 * Math.sin(frame * 0.055 + n.y * 0.04 + n.x * 0.02);
 
-    const px = offsetX + c.gx * cellW + cellW / 2;
-    const py = offsetY + c.gy * cellH + cellH / 2;
+    const sx = cx + (n.x + swayX) * scale;
+    const sy = cy + (n.y + swayY) * scale;
 
-    ctx.globalAlpha = revealAlpha * shimmerAlpha;
-    ctx.fillStyle = c.baseColor;
-    ctx.fillText(c.char, px, py);
+    ctx.globalAlpha = revealAlpha * wave;
+    ctx.fillStyle = n.color;
+    ctx.fillText(n.char, sx, sy);
   }
 
-  // Spawn & update floating ASCII hearts and sparkles
-  if (particles.length < 36 && Math.random() < 0.18) {
+  // Spawn & animate surrounding ASCII hearts
+  if (particles.length < 34 && Math.random() < 0.18) {
     spawnParticle();
   }
 
   for (let i = particles.length - 1; i >= 0; i--) {
     const p = particles[i];
-    p.x += p.vx + Math.sin(p.phase) * 0.18;
+    p.x += p.vx + Math.sin(p.phase) * 0.16;
     p.y += p.vy;
     p.phase += 0.03;
     p.life--;
@@ -335,13 +293,14 @@ function animate() {
     ctx.globalAlpha = Math.max(0, fade * 0.9);
     ctx.fillStyle = p.color;
 
-    for (let lineIdx = 0; lineIdx < p.art.length; lineIdx++) {
-      ctx.fillText(p.art[lineIdx], p.x, p.y + lineIdx * (cellH * 0.85));
+    for (let r = 0; r < p.art.length; r++) {
+      ctx.fillText(p.art[r], p.x, p.y + r * (13 * scale));
     }
   }
 
-ctx.globalAlpha = 1;
-frame++;
-requestAnimationFrame(animate);
+  ctx.globalAlpha = 1;
+  frame++;
+  requestAnimationFrame(animate);
 }
+
 animate();
