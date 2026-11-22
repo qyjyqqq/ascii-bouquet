@@ -273,12 +273,13 @@ function buildScene() {
 
   // 7. Cute Curly Mascot at the Bottom
   const mascot = [
-    "    . - ~ - .    ",
-    "  (  /\\ _ /\\  )  ",
-    " (  (  o . o  )  )",
-    "    (    <3   )  ",
-    "     ' - _ - '    "
+    "     . - ~ - .     ",
+    "   (  /\\ _ /\\  )   ",
+    " (  (  o . o  )  ) ",
+    "   (    <3     )   ",
+    "     ' - _ - '     "
   ];
+
 
   mascot.forEach((line, r) => {
     for (let c = 0; c < line.length; c++) {
