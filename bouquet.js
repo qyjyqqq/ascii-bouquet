@@ -43,147 +43,146 @@ resize();
 
 const rand = (min, max) => min + Math.random() * (max - min);
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
-const smoothstep = (edge0, edge1, x) => {
-  const t = Math.max(0, Math.min(1, (x - edge0) / (edge1 - edge0)));
+const smoothstep = (e0, e1, x) => {
+  const t = Math.max(0, Math.min(1, (x - e0) / (e1 - e0)));
   return t * t * (3 - 2 * t);
 };
 
-let bouquetPoints = [];
-let staticOverlay = [];
+// Build 3D points with exact reveal rank (matching buildScene() in video)
+let points = [];
 
 function buildScene() {
-  bouquetPoints = [];
-  staticOverlay = [];
+  points = [];
 
-  // anchorX/Y/Z lets flowers bloom outward from their own center bud
-  function add3D(x, y, z, char, palette, rank, anchor = null) {
-    bouquetPoints.push({
+  function pushPt(x, y, z, char, palette, rank, priority = 1, bloomOrigin = null) {
+    points.push({
       x,
       y,
       z,
-      ax: anchor ? anchor.x : x * 0.15,
-      ay: anchor ? anchor.y : Math.min(82, y + 25),
-      az: anchor ? anchor.z : z * 0.15,
-      isBloom: Boolean(anchor),
+      ox: bloomOrigin ? bloomOrigin.x : x * 0.1,
+      oy: bloomOrigin ? bloomOrigin.y : Math.min(78, y + 35),
+      oz: bloomOrigin ? bloomOrigin.z : z * 0.1,
+      hasBloom: Boolean(bloomOrigin),
       char,
       color: pick(palette),
-      rank
+      rank,
+      priority // higher priority wins when two points snap to the same ASCII cell
     });
   }
 
-  const KNOT = { x: 0, y: 84, z: 0 };
+  const KNOT = { x: 0, y: 80, z: 0 };
 
-  // 1. Asymmetrical, Organic Flower Arrangement (varied heights, angles & sizes)
+  // 1. Asymmetrical Flower Heads (top & side blooms like 00:05 - 00:14)
   const flowers = [
-    { x: -12, y: -152, z: 14,  r: 29, palette: GOLDS, delay: 78 },
-    { x: 34,  y: -140, z: -18, r: 26, palette: PINKS, delay: 82 },
-    { x: -56, y: -124, z: -24, r: 27, palette: CYANS, delay: 74 },
-    { x: 18,  y: -116, z: 48,  r: 28, palette: CYANS, delay: 72 },
-    { x: 68,  y: -104, z: 26,  r: 25, palette: GOLDS, delay: 70 },
-    { x: -38, y: -102, z: 44,  r: 26, palette: PINKS, delay: 70 },
-    { x: -84, y: -86,  z: 18,  r: 24, palette: GOLDS, delay: 65 },
-    { x: 4,   y: -96,  z: -56, r: 27, palette: GOLDS, delay: 72 },
-    { x: 86,  y: -76,  z: -28, r: 24, palette: CYANS, delay: 64 },
-    { x: -58, y: -74,  z: -58, r: 25, palette: PINKS, delay: 66 },
-    { x: 44,  y: -72,  z: -62, r: 23, palette: PINKS, delay: 66 },
-    { x: -16, y: -70,  z: 74,  r: 24, palette: GOLDS, delay: 62 },
-    { x: 48,  y: -66,  z: 66,  r: 22, palette: PINKS, delay: 62 },
-    { x: -66, y: -62,  z: 56,  r: 22, palette: CYANS, delay: 60 }
+    { x: -10, y: -158, z: 12,  r: 30, palette: GOLDS, delay: 44 },
+    { x: 36,  y: -146, z: -16, r: 27, palette: PINKS, delay: 46 },
+    { x: -58, y: -128, z: -22, r: 28, palette: CYANS, delay: 42 },
+    { x: 18,  y: -120, z: 48,  r: 29, palette: CYANS, delay: 40 },
+    { x: 74,  y: -106, z: 24,  r: 26, palette: GOLDS, delay: 42 },
+    { x: -40, y: -104, z: 44,  r: 27, palette: PINKS, delay: 40 },
+    { x: -94, y: -88,  z: 16,  r: 25, palette: GOLDS, delay: 38 },
+    { x: 4,   y: -98,  z: -56, r: 28, palette: GOLDS, delay: 40 },
+    { x: 96,  y: -78,  z: -26, r: 25, palette: CYANS, delay: 38 },
+    { x: -62, y: -76,  z: -58, r: 26, palette: PINKS, delay: 38 },
+    { x: 46,  y: -72,  z: -62, r: 24, palette: PINKS, delay: 38 },
+    { x: -16, y: -72,  z: 74,  r: 25, palette: GOLDS, delay: 36 },
+    { x: 52,  y: -66,  z: 66,  r: 23, palette: PINKS, delay: 36 },
+    { x: -70, y: -62,  z: 56,  r: 23, palette: CYANS, delay: 36 }
   ];
 
-  // 2. Connect a Curved 3D Stem Directly from the Knot to Every Single Flower
+  // 2. Curved Stems shooting up from Knot directly into each Flower Base
   flowers.forEach((f) => {
-    const stemSteps = 26;
-    // Slight natural bow in the middle of each stem
-    const bendX = f.x * 0.14 + rand(-4, 4);
-    const bendZ = f.z * 0.14 + rand(-4, 4);
+    const steps = 32;
+    const bendX = f.x * 0.15 + rand(-3, 3);
+    const bendZ = f.z * 0.15 + rand(-3, 3);
 
-    for (let s = 0; s <= stemSteps; s++) {
-      const t = s / stemSteps; // 0 = knot, 1 = flower base
+    for (let s = 0; s <= steps; s++) {
+      const t = s / steps;
       const inv = 1 - t;
-      // Quadratic Bezier curve from KNOT -> control bend -> flower base
       const sx = inv * inv * KNOT.x + 2 * inv * t * bendX + t * t * f.x;
-      const sy = inv * inv * KNOT.y + 2 * inv * t * ((KNOT.y + f.y) * 0.52) + t * t * (f.y + 6);
+      const sy = inv * inv * KNOT.y + 2 * inv * t * ((KNOT.y + f.y) * 0.52) + t * t * (f.y + 8);
       const sz = inv * inv * KNOT.z + 2 * inv * t * bendZ + t * t * f.z;
 
       const char = Math.abs(f.x) > 45 && t > 0.45 ? (f.x < 0 ? "\\" : "/") : "|";
-      add3D(sx, sy, sz, char, GREENS, 14 + t * 46);
+      // Stems shoot upward rapidly between frames 8 and 36
+      pushPt(sx, sy, sz, char, GREENS, 8 + t * 28, 2);
 
-      // Add small leaves along the upper half of the stem
-      if (s === 16 || s === 20) {
-        const leafDir = s === 16 ? -1 : 1;
-        add3D(sx + leafDir * 6, sy - 2, sz + 3, leafDir < 0 ? "~" : "*", GREENS, 36 + t * 25);
+      // Side leaves along upper stems
+      if (s === 18 || s === 24) {
+        const dir = s === 18 ? -1 : 1;
+        pushPt(sx + dir * 7, sy - 2, sz + 3, dir < 0 ? "~" : "*", GREENS, 22 + t * 18, 2);
       }
     }
 
-    // 3. Build Each 3D Spherical Rose Centered Right on Top of Its Stem
-    const petalPoints = 82;
-    for (let i = 0; i < petalPoints; i++) {
-      const frac = i / petalPoints;
-      const phi = Math.acos(1 - frac * 0.86);
-      const theta = i * 2.39996 + f.x * 0.1; // golden angle spiral + slight unique rotation
-      const petalWave = 0.8 + 0.2 * Math.cos(theta * 5);
-      const rad = f.r * petalWave;
+    // 3. 3D Spherical Rose Blooms that physically expand outward from center bud
+    const count = 95;
+    for (let i = 0; i < count; i++) {
+      const frac = i / count; // 0 = center bud, 1 = outer petals
+      const phi = Math.acos(1 - frac * 0.88);
+      const theta = i * 2.39996 + f.x * 0.1;
+      const lobe = 0.78 + 0.22 * Math.cos(theta * 5);
+      const rad = f.r * lobe;
 
       const lx = Math.sin(phi) * Math.cos(theta) * rad;
       const lz = Math.sin(phi) * Math.sin(theta) * rad;
       const ly = -Math.cos(phi) * (f.r * 0.62);
 
       let char;
-      if (frac < 0.2) char = "@";
-      else if (frac < 0.5) char = i % 2 === 0 ? "(" : ")";
-      else if (frac < 0.78) char = "=";
+      if (frac < 0.22) char = "@";
+      else if (frac < 0.52) char = i % 2 === 0 ? "(" : ")";
+      else if (frac < 0.8) char = "=";
       else char = "*";
 
-      add3D(
+      // Center bud appears first, outer petals erupt outward right after
+      pushPt(
         f.x + lx,
         f.y + ly,
         f.z + lz,
         char,
         f.palette,
-        f.delay + frac * 18,
+        f.delay + frac * 16,
+        3,
         { x: f.x, y: f.y, z: f.z }
       );
     }
   });
 
-  // 4. Delicate Baby's Breath ("babies") Accent Sprigs Tucked Between Blooms
-  for (let b = 0; b < 18; b++) {
+  // 4. Baby's Breath ("babies") Sprigs between flowers
+  for (let b = 0; b < 22; b++) {
     const angle = rand(0, Math.PI * 2);
-    const dist = rand(25, 88);
+    const dist = rand(25, 92);
     const bx = Math.cos(angle) * dist;
     const bz = Math.sin(angle) * dist;
-    const by = rand(-130, -68);
+    const by = rand(-135, -66);
 
-    // Tiny sprig stem
     for (let s = 0; s < 8; s++) {
       const t = s / 8;
-      add3D(bx * (0.3 + 0.7 * t), 20 + (by - 20) * t, bz * (0.3 + 0.7 * t), ":", GREENS, 45 + t * 25);
+      pushPt(bx * (0.3 + 0.7 * t), 22 + (by - 22) * t, bz * (0.3 + 0.7 * t), ":", GREENS, 26 + t * 18, 2);
     }
-    // Tiny white/gold blossom dots
     for (let d = 0; d < 5; d++) {
-      add3D(
+      pushPt(
         bx + rand(-7, 7),
         by + rand(-6, 6),
         bz + rand(-7, 7),
         pick([".", "·", "*"]),
         Math.random() < 0.75 ? WHITES : GOLDS,
-        75 + d * 2,
+        46 + d * 2,
+        3,
         { x: bx, y: by, z: bz }
       );
     }
   }
 
-  // 5. 3D Cone Wrapper & Ribbon Knot (leaves open front V-window so stems are visible)
-  const layers = 32;
+  // 5. 3D Cone Wrapper (horizontal scanline rows like 00:04 - 00:14)
+  const layers = 36;
   for (let l = 0; l <= layers; l++) {
-    const t = l / layers; // 0 = knot, 1 = upper rim
-    const y = 84 - t * 136;
-    const baseR = 8 + Math.pow(t, 0.85) * 106;
-    const circumference = Math.max(14, Math.floor(baseR * 0.62));
+    const t = l / layers; // 0 = knot, 1 = wide rim
+    const y = 80 - t * 134;
+    const baseR = 8 + Math.pow(t, 0.85) * 108;
+    const steps = Math.max(16, Math.floor(baseR * 0.75));
 
-    for (let s = 0; s < circumference; s++) {
-      const theta = (s / circumference) * Math.PI * 2;
+    for (let s = 0; s < steps; s++) {
+      const theta = (s / steps) * Math.PI * 2;
       const fold = Math.sin(theta * 7 + t * 3) * (5 * t);
       const r = baseR + fold;
 
@@ -205,57 +204,21 @@ function buildScene() {
         palette = Math.random() < 0.75 ? WHITES : CYANS;
       }
 
-      add3D(x, y, z, char, palette, 8 + t * 48);
+      pushPt(x, y, z, char, palette, 4 + t * 34, 1);
     }
   }
 
-  // 6. Ruffled Tissue Paper Collar Framing the Back & Sides
-  for (let i = 0; i < 220; i++) {
+  // 6. Ruffled Tissue Paper Collar Wings
+  for (let i = 0; i < 240; i++) {
     const theta = rand(0, Math.PI * 2);
     const v = rand(0, 1);
-    const wave = Math.sin(theta * 6) * 12;
-    const r = 104 + v * 30 + wave;
+    const wave = Math.sin(theta * 6) * 13;
+    const r = 104 + v * 32 + wave;
     const x = Math.cos(theta) * r;
     const z = Math.sin(theta) * r;
-    const y = -50 - v * 74 + Math.sin(theta * 5) * 10;
+    const y = -50 - v * 76 + Math.sin(theta * 5) * 10;
 
-    add3D(x, y, z, v > 0.78 ? "^" : ".", WHITES, 42 + v * 25);
-  }
-
-  // 7. Cute Mascot at the Bottom
-  const mascot = [
-    "    . - ~ - .    ",
-    "  (  /\\ _ /\\  )  ",
-    " (  (  o . o  )  )",
-    "  (  \\  <3  /  )  ",
-    "    ' - _ - '    "
-  ];
-
-  mascot.forEach((line, r) => {
-    for (let c = 0; c < line.length; c++) {
-      const ch = line[c];
-      if (ch === " ") continue;
-      staticOverlay.push({
-        x: (c - line.length / 2) * 7.5,
-        y: 112 + r * 13,
-        char: ch,
-        color: ch === "<" || ch === "3" ? "#ff80ab" : "#ffffff",
-        rank: 6 + r * 3
-      });
-    }
-  });
-
-  // 8. Bottom Caption
-  const msg = "A little something for ya :3";
-  for (let i = 0; i < msg.length; i++) {
-    if (msg[i] === " ") continue;
-    staticOverlay.push({
-      x: (i - msg.length / 2) * 7.5,
-      y: 194,
-      char: msg[i],
-      color: "#e2e8f0",
-      rank: 96 + i * 0.7
-    });
+    pushPt(x, y, z, v > 0.78 ? "^" : ".", WHITES, 32 + v * 20, 1);
   }
 }
 
@@ -309,76 +272,125 @@ function animate() {
   ctx.fillRect(0, 0, width, height);
 
   const cx = width / 2;
-  const cy = height / 2 + 12;
+  const cy = height / 2 - 4;
   const scale = Math.min(width / 500, height / 490);
   const fov = 470;
 
-  // Phase 1 (frames 0-115): Stay still while stems grow & flowers bloom open
-  // Phase 2 (frames 115+): Smoothly ramp up into a slow, gentle 3D spin
-  const spinEase = smoothstep(115, 210, frame);
-  rotY += 0.0055 * spinEase;
+  // Monospace ASCII character cell dimensions (creates the crisp horizontal row look in video)
+  const cellW = Math.max(6, 7.2 * scale);
+  const cellH = Math.max(9, 11.2 * scale);
+  const fontSize = Math.max(9, Math.round(12.2 * scale));
+
+  // Phase 1 (frames 0-72): Bouquet erupts upward & flowers bloom outward from centers
+  // Phase 2 (frames 72+): Smoothly eases into a slow, steady 3D spin
+  const spinEase = smoothstep(72, 150, frame);
+  rotY += 0.0052 * spinEase;
 
   const cosY = Math.cos(rotY);
   const sinY = Math.sin(rotY);
-  const tiltX = 0.26; // gentle forward tilt so flowers & stems are both visible
+  const tiltX = 0.25;
   const cosX = Math.cos(tiltX);
   const sinX = Math.sin(tiltX);
 
-  const projected = [];
+  // Grid buffer: snaps 3D points onto monospace ASCII cells with Z-depth occlusion
+  const gridMap = new Map();
 
-  for (let i = 0; i < bouquetPoints.length; i++) {
-    const p = bouquetPoints[i];
+  for (let i = 0; i < points.length; i++) {
+    const p = points[i];
     if (frame < p.rank) continue;
 
     const age = frame - p.rank;
-    // Blooming expansion: flowers unfurl outward from their center bud over 28 frames
-const bloomEase = smoothstep(0, 28, age);
-const curX = p.ax + (p.x - p.ax) * bloomEase;
-const curY = p.ay + (p.y - p.ay) * bloomEase;
-const curZ = p.az + (p.z - p.az) * bloomEase;
-// 3D Y-axis rotation
-const rx = curX * cosY - curZ * sinY;
-const rz1 = curX * sinY + curZ * cosY;
-// Forward tilt
-const ry = curY * cosX - rz1 * sinX;
-const rz = curY * sinX + rz1 * cosX;
-const persp = fov / (fov + rz + 145);
-const sx = cx + rx * persp * scale;
-const sy = cy + ry * persp * scale;
-const revealAlpha = Math.min(1, age / 16);
-// Keep stems inside the cone subtle behind front wrap, and keep blooms vibrant
-const depthAlpha = p.isBloom
-? Math.max(0.45, Math.min(1, (190 - rz) / 220))
-: Math.max(0.22, Math.min(0.95, (150 - rz) / 230));
-projected.push({
-sx,
-sy,
+    // Physical radial bloom eruption from each flower's bud (frames 0..22 after rank)
+    const bloomT = p.hasBloom ? smoothstep(0, 22, age) : smoothstep(0, 12, age);
+    // Slight overshoot bounce on petals so they visibly pop open
+    const pop = p.hasBloom && age < 26 ? 1 + Math.sin((age / 26) * Math.PI) * 0.14 : 1;
+
+    const curX = p.ox + (p.x - p.ox) * bloomT * pop;
+    const curY = p.oy + (p.y - p.oy) * bloomT * pop;
+    const curZ = p.oz + (p.z - p.oz) * bloomT * pop;
+
+    // 3D Y-axis rotation
+    const rx = curX * cosY - curZ * sinY;
+    const rz1 = curX * sinY + curZ * cosY;
+
+    // Forward tilt
+    const ry = curY * cosX - rz1 * sinX;
+    const rz = curY * sinX + rz1 * cosX;
+
+    const persp = fov / (fov + rz + 145);
+    const sx = cx + rx * persp * scale;
+    const sy = cy + ry * persp * scale;
+
+// Snap screen coordinates to crisp monospace grid cells
+const col = Math.round((sx - cx) / cellW);
+const row = Math.round((sy - cy) / cellH);
+const key = ${col},${row};
+const depthAlpha = p.hasBloom
+? Math.max(0.45, Math.min(1, (195 - rz) / 220))
+: Math.max(0.24, Math.min(0.95, (155 - rz) / 230));
+const existing = gridMap.get(key);
+// Closer Z (smaller rz) or higher priority (blooms over stems) wins the cell
+if (!existing || rz < existing.rz - 6 || (Math.abs(rz - existing.rz) <= 6 && p.priority > existing.priority)) {
+gridMap.set(key, {
+col,
+row,
 rz,
-persp,
 char: p.char,
 color: p.color,
-alpha: revealAlpha * depthAlpha
+alpha: depthAlpha
 });
 }
-projected.sort((a, b) => b.rz - a.rz);
+}
+ctx.font = bold ${fontSize}px "Courier New", monospace;
 ctx.textAlign = "center";
 ctx.textBaseline = "middle";
-for (let i = 0; i < projected.length; i++) {
-const pt = projected[i];
-const fontSize = Math.max(9, Math.round(13 * pt.persp * scale));
-ctx.font = bold ${fontSize}px "Courier New", monospace;
-ctx.globalAlpha = pt.alpha;
-ctx.fillStyle = pt.color;
-ctx.fillText(pt.char, pt.sx, pt.sy);
+gridMap.forEach((cell) => {
+ctx.globalAlpha = cell.alpha;
+ctx.fillStyle = cell.color;
+ctx.fillText(cell.char, cx + cell.col * cellW, cy + cell.row * cellH);
+});
+// Cute Mascot inside a Spinning Dotted Halo Ring at the Bottom (matching 00:05 - 00:14)
+if (frame >= 14) {
+const mascotY = cy + 132 * scale;
+const ringDots = 26;
+for (let d = 0; d < ringDots; d++) {
+const a = (d / ringDots) * Math.PI * 2 + frame * 0.025;
+const rx = Math.cos(a) * 36 * scale;
+const ry = Math.sin(a) * 28 * scale;
+ctx.globalAlpha = 0.85;
+ctx.fillStyle = d % 2 === 0 ? "#ffffff" : "#cbd5e1";
+ctx.fillText(d % 3 === 0 ? "·" : ".", cx + rx, mascotY + ry);
 }
-// Static mascot & bottom text
-ctx.font = bold ${Math.max(10, Math.round(13 * scale))}px "Courier New", monospace;
-for (let i = 0; i < staticOverlay.length; i++) {
-const s = staticOverlay[i];
-if (frame < s.rank) continue;
-ctx.globalAlpha = Math.min(1, (frame - s.rank) / 18);
-ctx.fillStyle = s.color;
-ctx.fillText(s.char, cx + s.x * scale, cy + s.y * scale);
+const mascotLines = [
+" /\_/\ ",
+"( o.o )",
+" ( <3 )"
+];
+mascotLines.forEach((line, rIdx) => {
+for (let cIdx = 0; cIdx < line.length; cIdx++) {
+const ch = line[cIdx];
+if (ch === " ") continue;
+const lx = (cIdx - line.length / 2 + 0.5) * cellW;
+const ly = (rIdx - 1) * cellH;
+ctx.globalAlpha = 1;
+ctx.fillStyle = ch === "<" || ch === "3" ? "#ff80ab" : "#ffffff";
+ctx.fillText(ch, cx + lx, mascotY + ly);
+}
+});
+}
+// Typewriter Bottom Caption ("A little something for ya :3" appearing letter-by-letter)
+const caption = "A little something for ya :3";
+const visibleChars = Math.max(0, Math.min(caption.length, Math.floor((frame - 78) * 0.45)));
+if (visibleChars > 0) {
+const capY = cy + 188 * scale;
+for (let i = 0; i < visibleChars; i++) {
+const ch = caption[i];
+if (ch === " ") continue;
+const lx = (i - caption.length / 2 + 0.5) * cellW;
+ctx.globalAlpha = 0.95;
+ctx.fillStyle = "#e2e8f0";
+ctx.fillText(ch, cx + lx, capY);
+}
 }
 // Surrounding floating hearts & sparkles
 if (particles.length < 34 && Math.random() < 0.16) {
