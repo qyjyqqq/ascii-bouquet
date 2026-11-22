@@ -10,6 +10,236 @@
   <main class="stage">
     <canvas id="canvas"></canvas>
   </main>
-  <script src="bouquet.js"></script>
+
+  <script>
+    const canvas = document.getElementById("canvas");
+    const ctx = canvas.getContext("2d");
+
+    const GOLDS  = ["#fff79a", "#ffe875", "#ffd54f", "#ffca28"];
+    const CYANS  = ["#80deea", "#4dd0e1", "#26c6da", "#b2ebf2"];
+    const PINKS  = ["#f8bbd0", "#f48fb1", "#ff80ab", "#fce4ec"];
+    const GREENS = ["#a5d6a7", "#81c784", "#66bb6a", "#c8e6c9"];
+    const WHITES = ["#ffffff", "#dce4f2", "#9fb3c8", "#627d98"];
+    const HEART_COLORS = [...PINKS, "#ffffff"];
+
+    const BIG_HEART  = [" /\\ /\\ ", "(  V  )", " \\   / ", "  \\ /  ", "   V   "];
+    const MID_HEART  = ["/\\/\\", "\\  /", " \\/ "];
+    const MINI_HEART = ["<3"];
+
+    const HOLDER_SPRITE = [
+      "   .-\"\"\"-.   ",
+      "  / .===. \\  ",
+      " ( ( o o ) ) ",
+      "  \\ ( <3 ) / ",
+      "   '-...-'   "
+    ];
+
+    let width = 0, height = 0;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const COLS = 88, ROWS = 54;
+    let cellW = 10, cellH = 16;
+
+    function resize() {
+      width = window.innerWidth;
+      height = window.innerHeight;
+      canvas.width = width * dpr;
+      canvas.height = height * dpr;
+      canvas.style.width = width + "px";
+      canvas.style.height = height + "px";
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+      const maxCellH = Math.floor((height * 0.9) / ROWS);
+      const maxCellW = Math.floor((width * 0.94) / COLS);
+      cellH = Math.max(10, Math.min(18, maxCellH, Math.floor(maxCellW * 1.65)));
+      cellW = cellH * 0.62;
+    }
+    window.addEventListener("resize", resize);
+    resize();
+
+    const rand = (min, max) => min + Math.random() * (max - min);
+    const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+
+    const sceneCells = [];
+
+    function buildScene() {
+      sceneCells.length = 0;
+      const cx = Math.floor(COLS / 2);
+
+      function addCell(gx, gy, char, palette, rank, kind) {
+        sceneCells.push({
+          gx, gy, char, palette,
+          baseColor: pick(palette),
+          rank, kind,
+          phase: rand(0, Math.PI * 2),
+          speed: rand(0.03, 0.07)
+        });
+      }
+
+      const coneTop = 17, coneBot = 39;
+      for (let y = coneTop; y <= coneBot; y++) {
+        const t = (coneBot - y) / (coneBot - coneTop);
+        const ruffle = Math.sin(t * Math.PI * 3) * 1.6;
+        const halfSpan = Math.round(2 + Math.pow(t, 0.85) * 26 + ruffle);
+
+        for (let dx = -halfSpan; dx <= halfSpan; dx++) {
+          const gx = cx + dx;
+          const normX = halfSpan === 0 ? 0 : dx / halfSpan;
+          const absNorm = Math.abs(normX);
+
+          if (y < 24 && absNorm < 0.58 * (1 - (y - coneTop) / 9)) continue;
+
+          const foldWave = Math.sin(normX * Math.PI * 5);
+          let char = ".", palette = WHITES;
+
+          if (absNorm > 0.92) {
+            char = dx < 0 ? "\\" : "/";
+          } else if (foldWave > 0.55) {
+            char = dx < 0 ? "\\" : "/";
+            palette = CYANS;
+          } else if (foldWave < -0.55) {
+            char = ":";
+          } else if ((gx + y) % 2 === 0) {
+            char = "-";
+          } else {
+            char = "=";
+            palette = CYANS;
+          }
+
+          addCell(gx, y, char, palette, t * 55 + absNorm * 8, "wrap");
+        }
+      }
+
+      for (let i = 0; i < 150; i++) {
+        const angle = rand(-Math.PI * 0.92, -Math.PI * 0.08);
+        const radius = rand(7, 25);
+        const gx = Math.round(cx + Math.cos(angle) * radius * 1.25);
+        const gy = Math.round(22 + Math.sin(angle) * radius * 0.72);
+        addCell(gx, gy, pick(["/", "\\", "|", "~", "*", ";"]), GREENS, 45 + rand(0, 25), "leaf");
+      }
+
+      const flowers = [
+        { x: cx,      y: 12, rx: 6.5, ry: 4.2, palette: GOLDS, delay: 68 },
+        { x: cx - 11, y: 14, rx: 6.0, ry: 3.8, palette: CYANS, delay: 62 },
+        { x: cx + 11, y: 14, rx: 6.0, ry: 3.8, palette: PINKS, delay: 62 },
+        { x: cx - 19, y: 18, rx: 5.5, ry: 3.5, palette: GOLDS, delay: 56 },
+        { x: cx + 19, y: 18, rx: 5.5, ry: 3.5, palette: CYANS, delay: 56 },
+        { x: cx - 6,  y: 18, rx: 5.8, ry: 3.6, palette: PINKS, delay: 58 },
+        { x: cx + 6,  y: 18, rx: 5.8, ry: 3.6, palette: GOLDS, delay: 58 },
+        { x: cx,      y: 22, rx: 5.2, ry: 3.2, palette: CYANS, delay: 50 },
+        { x: cx - 13, y: 22, rx: 4.8, ry: 3.0, palette: PINKS, delay: 52 },
+        { x: cx + 13, y: 22, rx: 4.8, ry: 3.0, palette: GOLDS, delay: 52 },
+        { x: cx - 5,  y: 8,  rx: 4.5, ry: 2.8, palette: PINKS, delay: 74 },
+        { x: cx + 5,  y: 8,  rx: 4.5, ry: 2.8, palette: CYANS, delay: 74 }
+      ];
+
+      flowers.forEach((f) => {
+        for (let dy = -Math.ceil(f.ry); dy <= Math.ceil(f.ry); dy++) {
+          for (let dx = -Math.ceil(f.rx); dx <= Math.ceil(f.rx); dx++) {
+            const dist = Math.sqrt((dx / f.rx) ** 2 + (dy / f.ry) ** 2);
+            if (dist <= 1.0) {
+              const char = dist < 0.28 ? "@" : dist < 0.58 ? (dx < 0 ? "(" : ")") : dist < 0.82 ? (dy < 0 ? "~" : "=") : "*";
+              addCell(Math.round(f.x + dx), Math.round(f.y + dy), char, f.palette, f.delay + dist * 10, "flower");
+            }
+          }
+        }
+      });
+
+      HOLDER_SPRITE.forEach((line, rIdx) => {
+        const startX = Math.floor(cx - line.length / 2);
+        for (let cIdx = 0; cIdx < line.length; cIdx++) {
+          const ch = line[cIdx];
+          if (ch !== " ") {
+            addCell(startX + cIdx, 40 + rIdx, ch, (ch === "<" || ch === "3") ? PINKS : WHITES, 10 + rIdx * 3, "holder");
+          }
+        }
+      });
+
+      const caption = "A little something for ya :3";
+      const capStartX = Math.floor(cx - caption.length / 2);
+      for (let i = 0; i < caption.length; i++) {
+        if (caption[i] !== " ") {
+          addCell(capStartX + i, 47, caption[i], WHITES, 85 + i * 0.8, "text");
+        }
+      }
+    }
+
+    buildScene();
+
+    const particles = [];
+    function spawnParticle() {
+      const cx = width / 2, cy = height / 2;
+      const side = Math.random() < 0.5 ? -1 : 1;
+      const roll = Math.random();
+      let art = MINI_HEART, colors = HEART_COLORS, vy = rand(-0.45, -0.2);
+
+      if (roll < 0.12) { art = BIG_HEART; colors = WHITES; vy = rand(-0.3, -0.15); }
+      else if (roll < 0.28) { art = MID_HEART; colors = HEART_COLORS; vy = rand(-0.4, -0.2); }
+      else if (roll >= 0.62) { art = ["+"]; colors = [...GOLDS, ...CYANS, ...WHITES]; vy = rand(-0.25, -0.05); }
+
+      particles.push({
+        x: cx + side * rand(cellW * 16, cellW * 38),
+        y: cy + rand(-cellH * 22, cellH * 22),
+        art, color: pick(colors),
+        vx: rand(-0.12, 0.12), vy,
+        phase: rand(0, Math.PI * 2),
+        life: rand(120, 240), maxLife: 240
+      });
+    }
+
+    let frame = 0;
+    function animate() {
+      ctx.fillStyle = "#020308";
+      ctx.fillRect(0, 0, width, height);
+
+      const offsetX = (width - COLS * cellW) / 2;
+      const offsetY = (height - ROWS * cellH) / 2;
+
+      ctx.font = "bold " + Math.round(cellH * 0.88) + "px 'Courier New', monospace";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+
+      for (let i = 0; i < sceneCells.length; i++) {
+        const c = sceneCells[i];
+        if (frame < c.rank) continue;
+
+        const revealAlpha = Math.min(1, (frame - c.rank) / 18);
+        const wave = Math.sin(frame * 0.06 + c.gy * 0.25 + c.gx * 0.12);
+        const shimmerAlpha = 0.72 + 0.28 * wave;
+
+        if (c.kind === "flower" && Math.sin(frame * c.speed + c.phase) > 0.96) {
+          c.baseColor = pick(c.palette);
+        }
+
+        ctx.globalAlpha = revealAlpha * shimmerAlpha;
+        ctx.fillStyle = c.baseColor;
+        ctx.fillText(c.char, offsetX + c.gx * cellW + cellW / 2, offsetY + c.gy * cellH + cellH / 2);
+      }
+
+      if (particles.length < 36 && Math.random() < 0.18) spawnParticle();
+
+      for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        p.x += p.vx + Math.sin(p.phase) * 0.18;
+        p.y += p.vy;
+        p.phase += 0.03;
+        p.life--;
+
+        if (p.life <= 0) { particles.splice(i, 1); continue; }
+
+        const fade = Math.min(1, p.life / 40) * Math.min(1, (p.maxLife - p.life) / 25);
+        ctx.globalAlpha = Math.max(0, fade * 0.9);
+        ctx.fillStyle = p.color;
+        for (let lineIdx = 0; lineIdx < p.art.length; lineIdx++) {
+          ctx.fillText(p.art[lineIdx], p.x, p.y + lineIdx * (cellH * 0.85));
+        }
+      }
+
+      ctx.globalAlpha = 1;
+      frame++;
+      requestAnimationFrame(animate);
+    }
+
+    animate();
+  </script>
 </body>
 </html>
