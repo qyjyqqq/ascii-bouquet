@@ -24,6 +24,7 @@ const MID_HEART = [
 
 const MINI_HEART = ["<3"];
 const BURST = ["+", "*", "·", "✦"];
+const FIREWORK_CHARS = ["✦", "✧", "*", "+", "·", "°"];
 
 let width = 0;
 let height = 0;
@@ -50,6 +51,7 @@ const smoothstep = (e0, e1, x) => {
 
 let bouquetPoints = [];
 let staticOverlay = [];
+let flowerList = [];
 
 function buildScene() {
   bouquetPoints = [];
@@ -73,8 +75,8 @@ function buildScene() {
 
   const KNOT = { x: 0, y: 86, z: 0 };
 
-  // 1. Hand-Balanced, Asymmetrical Flower Arrangement
-  const flowers = [
+  // 1. Exact Same Hand-Balanced Flower Arrangement
+  flowerList = [
     { x: -8,   y: -162, z: 10,  r: 31, tiltX: 0.15,  tiltZ: -0.08, palette: GOLDS, delay: 54 },
     { x: 42,   y: -148, z: -18, r: 28, tiltX: -0.18, tiltZ: 0.25,  palette: PINKS, delay: 58 },
     { x: -58,  y: -134, z: -20, r: 29, tiltX: -0.15, tiltZ: -0.28, palette: CYANS, delay: 52 },
@@ -92,7 +94,7 @@ function buildScene() {
   ];
 
   // 2. Smooth Curved Green Stems & Leaves Directly Connected to Each Flower Base
-  flowers.forEach((f) => {
+  flowerList.forEach((f) => {
     const stemSteps = 46;
     const bendX = f.x * 0.14;
     const bendZ = f.z * 0.14;
@@ -195,17 +197,18 @@ function buildScene() {
     }
   }
 
-  // 5. Sleek Pleated Cone Wrapper & Ribbon Knot
+  // 5. Tighter, Sleeker Pleated Cone Wrapper & Ribbon Knot
   const layers = 34;
   for (let l = 0; l <= layers; l++) {
     const t = l / layers;
-    const y = 86 - t * 116;
-    const baseR = 7 + Math.pow(t, 0.86) * 104;
-    const circumference = Math.max(14, Math.floor(baseR * 0.68));
+    const y = 86 - t * 114;
+    // Tighter taper (78 instead of 104) so it hugs the stems cleanly
+    const baseR = 6 + Math.pow(t, 0.92) * 78;
+    const circumference = Math.max(14, Math.floor(baseR * 0.78));
 
     for (let s = 0; s < circumference; s++) {
       const theta = (s / circumference) * Math.PI * 2;
-      const fold = Math.sin(theta * 8 + t * 2.5) * (5 * t);
+      const fold = Math.sin(theta * 8 + t * 2.5) * (3.2 * t);
       const r = baseR + fold;
 
       const x = Math.cos(theta) * r;
@@ -232,15 +235,15 @@ function buildScene() {
     }
   }
 
-  // 6. Soft Ruffled Tissue Paper Collar
-  for (let i = 0; i < 230; i++) {
+  // 6. Tighter Ruffled Tissue Paper Collar Framing the Wrapper
+  for (let i = 0; i < 210; i++) {
     const theta = rand(0, Math.PI * 2);
     const v = rand(0, 1);
-    const wave = Math.sin(theta * 6) * 13;
-    const r = 102 + v * 30 + wave;
+    const wave = Math.sin(theta * 6) * 8;
+    const r = 78 + v * 20 + wave;
     const x = Math.cos(theta) * r;
     const z = Math.sin(theta) * r;
-    const y = -32 - v * 74 + Math.sin(theta * 5) * 10;
+    const y = -28 - v * 66 + Math.sin(theta * 5) * 8;
 
     add3D(x, y, z, v > 0.78 ? "^" : ".", pick(WHITES), 34 + v * 22);
   }
@@ -324,16 +327,40 @@ function spawnParticle() {
   });
 }
 
+// Mini Fireworks Bursting Out When Flowers Bloom
+const fireworks = [];
+const triggeredBursts = new Set();
+function triggerMiniFirework(fx, fy, fz, palette, cx, cy, scale, fov, cosX, sinX) {
+// Project the flower's 3D bloom center to screen coordinates
+const ry = fy * cosX - fz * sinX;
+const rz = fy * sinX + fz * cosX;
+const persp = fov / (fov + rz + 145);
+const sx = cx + fx * persp * scale;
+const sy = cy + ry * persp * scale;
+const sparkCount = 16;
+for (let i = 0; i < sparkCount; i++) {
+const angle = (i / sparkCount) * Math.PI * 2 + rand(-0.25, 0.25);
+const speed = rand(1.1, 3.4) * scale;
+fireworks.push({
+x: sx,
+y: sy,
+vx: Math.cos(angle) * speed,
+vy: Math.sin(angle) * speed - 0.45 * scale,
+char: pick(FIREWORK_CHARS),
+color: Math.random() < 0.25 ? "#ffffff" : pick(palette),
+life: rand(34, 56),
+maxLife: 56
+});
+}
+}
 let frame = 0;
 let rotY = 0;
-
 function animate() {
-  ctx.fillStyle = "#020308";
-  ctx.fillRect(0, 0, width, height);
-
-  const cx = width / 2;
-  const cy = height / 2 + 12;
-  const scale = Math.min(width / 500, height / 490);
+ctx.fillStyle = "#020308";
+ctx.fillRect(0, 0, width, height);
+const cx = width / 2;
+const cy = height / 2 + 12;
+const scale = Math.min(width / 500, height / 490);
 const fov = 470;
 const spinEase = smoothstep(85, 180, frame);
 rotY += 0.0028 * spinEase;
@@ -342,6 +369,14 @@ const sinY = Math.sin(rotY);
 const tiltX = 0.24;
 const cosX = Math.cos(tiltX);
 const sinX = Math.sin(tiltX);
+// Trigger a mini firework pop right as each flower blooms open
+for (let idx = 0; idx < flowerList.length; idx++) {
+const f = flowerList[idx];
+if (frame >= f.delay + 8 && !triggeredBursts.has(idx)) {
+triggeredBursts.add(idx);
+triggerMiniFirework(f.x, f.y, f.z, f.palette, cx, cy, scale, fov, cosX, sinX);
+}
+}
 const projected = [];
 for (let i = 0; i < bouquetPoints.length; i++) {
 const p = bouquetPoints[i];
@@ -385,6 +420,27 @@ ctx.globalAlpha = pt.alpha;
 ctx.fillStyle = pt.color;
 ctx.fillText(pt.char, pt.sx, pt.sy);
 }
+// Draw & update mini blooming fireworks
+const fwSize = Math.max(9, Math.round(12 * scale));
+ctx.font = "bold " + fwSize + "px 'Courier New', monospace";
+for (let i = fireworks.length - 1; i >= 0; i--) {
+const fw = fireworks[i];
+fw.x += fw.vx;
+fw.y += fw.vy;
+fw.vx *= 0.95; // air drag slowdown like real fireworks
+fw.vy = fw.vy * 0.95 + 0.045; // gentle gravity arc
+fw.life--;
+if (fw.life <= 0) {
+fireworks.splice(i, 1);
+continue;
+}
+// Twinkle near the end of the spark's life
+const twinkle = fw.life < 16 && fw.life % 3 === 0 ? 0.35 : 1;
+ctx.globalAlpha = Math.min(1, fw.life / 22) * twinkle;
+ctx.fillStyle = fw.color;
+ctx.fillText(fw.char, fw.x, fw.y);
+}
+// Static mascot & typewriter bottom caption
 const staticSize = Math.max(10, Math.round(13 * scale));
 ctx.font = "bold " + staticSize + "px 'Courier New', monospace";
 for (let i = 0; i < staticOverlay.length; i++) {
@@ -394,6 +450,7 @@ ctx.globalAlpha = Math.min(1, (frame - s.rank) / 12);
 ctx.fillStyle = s.color;
 ctx.fillText(s.char, cx + s.x * scale, cy + s.y * scale);
 }
+// Surrounding floating hearts & sparkles
 if (particles.length < 32 && Math.random() < 0.15) {
 spawnParticle();
 }
