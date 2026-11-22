@@ -48,7 +48,6 @@ const smoothstep = (e0, e1, x) => {
   return t * t * (3 - 2 * t);
 };
 
-// Build 3D points with exact reveal rank (matching buildScene() in video)
 let points = [];
 
 function buildScene() {
@@ -66,13 +65,13 @@ function buildScene() {
       char,
       color: pick(palette),
       rank,
-      priority // higher priority wins when two points snap to the same ASCII cell
+      priority
     });
   }
 
   const KNOT = { x: 0, y: 80, z: 0 };
 
-  // 1. Asymmetrical Flower Heads (top & side blooms like 00:05 - 00:14)
+  // 1. Asymmetrical Flower Heads
   const flowers = [
     { x: -10, y: -158, z: 12,  r: 30, palette: GOLDS, delay: 44 },
     { x: 36,  y: -146, z: -16, r: 27, palette: PINKS, delay: 46 },
@@ -104,12 +103,10 @@ function buildScene() {
       const sz = inv * inv * KNOT.z + 2 * inv * t * bendZ + t * t * f.z;
 
       const char = Math.abs(f.x) > 40 && t > 0.4 ? (f.x < 0 ? "\\" : "/") : "|";
-      // Above the wrapper rim (sy < -45), priority 3 keeps stems crisp and visible
-      const prio = sy < -45 ? 3 : 2;
+      const prio = sy < -32 ? 3 : 2;
       pushPt(sx, sy, sz, char, GREENS, 6 + t * 30, prio);
       pushPt(sx + 1.5, sy, sz, char, GREENS, 6 + t * 30, prio);
 
-      // Leaves along the upper exposed stems
       if (s === 34 || s === 42) {
         const dir = s === 34 ? -1 : 1;
         pushPt(sx + dir * 7, sy - 2, sz + 2, dir < 0 ? "~" : "*", GREENS, 22 + t * 18, 3);
@@ -119,7 +116,7 @@ function buildScene() {
     // 3. 3D Spherical Rose Blooms that physically expand outward from center bud
     const count = 95;
     for (let i = 0; i < count; i++) {
-      const frac = i / count; // 0 = center bud, 1 = outer petals
+      const frac = i / count;
       const phi = Math.acos(1 - frac * 0.88);
       const theta = i * 2.39996 + f.x * 0.1;
       const lobe = 0.78 + 0.22 * Math.cos(theta * 5);
@@ -135,7 +132,6 @@ function buildScene() {
       else if (frac < 0.8) char = "=";
       else char = "*";
 
-      // Center bud appears first, outer petals erupt outward right after
       pushPt(
         f.x + lx,
         f.y + ly,
@@ -143,7 +139,7 @@ function buildScene() {
         char,
         f.palette,
         f.delay + frac * 16,
-        3,
+        4,
         { x: f.x, y: f.y, z: f.z }
       );
     }
@@ -169,18 +165,18 @@ function buildScene() {
         pick([".", "·", "*"]),
         Math.random() < 0.75 ? WHITES : GOLDS,
         46 + d * 2,
-        3,
+        4,
         { x: bx, y: by, z: bz }
       );
     }
   }
 
-  // 5. 3D Cone Wrapper (horizontal scanline rows like 00:04 - 00:14)
-  const layers = 36;
+  // 5. 3D Cone Wrapper (lowered slightly so upper stems visibly bridge into flowers)
+  const layers = 34;
   for (let l = 0; l <= layers; l++) {
-    const t = l / layers; // 0 = knot, 1 = wide rim
+    const t = l / layers;
     const y = 80 - t * 112;
-    const baseR = 8 + Math.pow(t, 0.85) * 108;
+    const baseR = 8 + Math.pow(t, 0.85) * 102;
     const steps = Math.max(16, Math.floor(baseR * 0.75));
 
     for (let s = 0; s < steps; s++) {
@@ -211,14 +207,14 @@ function buildScene() {
   }
 
   // 6. Ruffled Tissue Paper Collar Wings
-  for (let i = 0; i < 240; i++) {
+  for (let i = 0; i < 220; i++) {
     const theta = rand(0, Math.PI * 2);
     const v = rand(0, 1);
     const wave = Math.sin(theta * 6) * 13;
-    const r = 104 + v * 32 + wave;
+    const r = 100 + v * 30 + wave;
     const x = Math.cos(theta) * r;
     const z = Math.sin(theta) * r;
-    const y = -50 - v * 76 + Math.sin(theta * 5) * 10;
+    const y = -32 - v * 74 + Math.sin(theta * 5) * 10;
 
     pushPt(x, y, z, v > 0.78 ? "^" : ".", WHITES, 32 + v * 20, 1);
   }
@@ -278,13 +274,10 @@ function animate() {
   const scale = Math.min(width / 500, height / 490);
   const fov = 470;
 
-  // Monospace ASCII character cell dimensions (creates the crisp horizontal row look in video)
   const cellW = Math.max(6, 7.2 * scale);
   const cellH = Math.max(9, 11.2 * scale);
   const fontSize = Math.max(9, Math.round(12.2 * scale));
 
-  // Phase 1 (frames 0-72): Bouquet erupts upward & flowers bloom outward from centers
-  // Phase 2 (frames 72+): Smoothly eases into a slow, steady 3D spin
   const spinEase = smoothstep(72, 150, frame);
   rotY += 0.0052 * spinEase;
 
@@ -294,7 +287,6 @@ function animate() {
   const cosX = Math.cos(tiltX);
   const sinX = Math.sin(tiltX);
 
-  // Grid buffer: snaps 3D points onto monospace ASCII cells with Z-depth occlusion
   const gridMap = new Map();
 
   for (let i = 0; i < points.length; i++) {
@@ -302,20 +294,16 @@ function animate() {
     if (frame < p.rank) continue;
 
     const age = frame - p.rank;
-    // Physical radial bloom eruption from each flower's bud (frames 0..22 after rank)
     const bloomT = p.hasBloom ? smoothstep(0, 22, age) : smoothstep(0, 12, age);
-    // Slight overshoot bounce on petals so they visibly pop open
     const pop = p.hasBloom && age < 26 ? 1 + Math.sin((age / 26) * Math.PI) * 0.14 : 1;
 
     const curX = p.ox + (p.x - p.ox) * bloomT * pop;
     const curY = p.oy + (p.y - p.oy) * bloomT * pop;
     const curZ = p.oz + (p.z - p.oz) * bloomT * pop;
 
-    // 3D Y-axis rotation
     const rx = curX * cosY - curZ * sinY;
     const rz1 = curX * sinY + curZ * cosY;
 
-    // Forward tilt
     const ry = curY * cosX - rz1 * sinX;
     const rz = curY * sinX + rz1 * cosX;
 
@@ -323,35 +311,38 @@ function animate() {
     const sx = cx + rx * persp * scale;
     const sy = cy + ry * persp * scale;
 
-// Snap screen coordinates to crisp monospace grid cells
-const col = Math.round((sx - cx) / cellW);
-const row = Math.round((sy - cy) / cellH);
-const key = ${col},${row};
-const depthAlpha = p.hasBloom
-? Math.max(0.45, Math.min(1, (195 - rz) / 220))
-: Math.max(0.24, Math.min(0.95, (155 - rz) / 230));
-const existing = gridMap.get(key);
-// Closer Z (smaller rz) or higher priority (blooms over stems) wins the cell
-if (!existing || rz < existing.rz - 6 || (Math.abs(rz - existing.rz) <= 6 && p.priority > existing.priority)) {
-gridMap.set(key, {
-col,
-row,
-rz,
-char: p.char,
-color: p.color,
-alpha: depthAlpha
-});
-}
-}
-ctx.font = bold ${fontSize}px "Courier New", monospace;
-ctx.textAlign = "center";
-ctx.textBaseline = "middle";
-gridMap.forEach((cell) => {
-ctx.globalAlpha = cell.alpha;
-ctx.fillStyle = cell.color;
-ctx.fillText(cell.char, cx + cell.col * cellW, cy + cell.row * cellH);
-});
-// Cute Mascot inside a Spinning Dotted Halo Ring at the Bottom (matching 00:05 - 00:14)
+    const col = Math.round((sx - cx) / cellW);
+    const row = Math.round((sy - cy) / cellH);
+    const key = `${col},${row}`;
+
+    const depthAlpha = p.hasBloom
+      ? Math.max(0.45, Math.min(1, (195 - rz) / 220))
+      : Math.max(0.24, Math.min(0.95, (155 - rz) / 230));
+
+    const existing = gridMap.get(key);
+    if (!existing || rz < existing.rz - 6 || (Math.abs(rz - existing.rz) <= 6 && p.priority > existing.priority)) {
+      gridMap.set(key, {
+        col,
+        row,
+        rz,
+        char: p.char,
+        color: p.color,
+        alpha: depthAlpha
+      });
+    }
+  }
+
+  ctx.font = `bold ${fontSize}px "Courier New", monospace`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+
+  gridMap.forEach((cell) => {
+    ctx.globalAlpha = cell.alpha;
+    ctx.fillStyle = cell.color;
+    ctx.fillText(cell.char, cx + cell.col * cellW, cy + cell.row * cellH);
+  });
+
+// Cute Mascot inside a Spinning Dotted Halo Ring at the Bottom
 if (frame >= 14) {
 const mascotY = cy + 132 * scale;
 const ringDots = 26;
@@ -380,7 +371,7 @@ ctx.fillText(ch, cx + lx, mascotY + ly);
 }
 });
 }
-// Typewriter Bottom Caption ("A little something for ya :3" appearing letter-by-letter)
+// Typewriter Bottom Caption
 const caption = "A little something for ya :3";
 const visibleChars = Math.max(0, Math.min(caption.length, Math.floor((frame - 78) * 0.45)));
 if (visibleChars > 0) {
