@@ -247,7 +247,27 @@ function buildScene() {
 
     add3D(x, y, z, v > 0.78 ? "^" : ".", pick(WHITES), 34 + v * 22);
   }
+  // 6.5. Unicode Braille Ribbon Bow Between Bouquet Knot and Mascot
+  const ribbon = [
+    "⣾⣿⣦⣀⣴⣿⣷",
+    "⠛⣻⣿⠛⣿⣟⠛",
+    "⢠⣾⣿⡏  ⢹⣿⣷⡄",
+    "  ⡟    ⢻⡀ "
+  ];
 
+  ribbon.forEach((line, r) => {
+    for (let c = 0; c < line.length; c++) {
+      const ch = line[c];
+      if (ch === " ") continue;
+      staticOverlay.push({
+        x: (c - line.length / 2 + 0.5) * 8.5,
+        y: 88 + r * 11,
+        char: ch,
+        color: "#ff80ab",
+        rank: 6 + r * 2
+      });
+    }
+  });
   // 7. Cute Curly Mascot at the Bottom
   const mascot = [
     "    . - ~ - .    ",
