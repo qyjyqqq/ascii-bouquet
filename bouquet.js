@@ -90,27 +90,29 @@ function buildScene() {
     { x: -70, y: -62,  z: 56,  r: 23, palette: CYANS, delay: 36 }
   ];
 
-  // 2. Curved Stems shooting up from Knot directly into each Flower Base
+  // 2. Thick, Continuous Curved Stems from Knot Straight Into Every Flower Center
   flowers.forEach((f) => {
-    const steps = 32;
-    const bendX = f.x * 0.15 + rand(-3, 3);
-    const bendZ = f.z * 0.15 + rand(-3, 3);
+    const steps = 55;
+    const bendX = f.x * 0.12;
+    const bendZ = f.z * 0.12;
 
     for (let s = 0; s <= steps; s++) {
       const t = s / steps;
       const inv = 1 - t;
       const sx = inv * inv * KNOT.x + 2 * inv * t * bendX + t * t * f.x;
-      const sy = inv * inv * KNOT.y + 2 * inv * t * ((KNOT.y + f.y) * 0.52) + t * t * (f.y + 8);
+      const sy = inv * inv * KNOT.y + 2 * inv * t * ((KNOT.y + f.y) * 0.5) + t * t * f.y;
       const sz = inv * inv * KNOT.z + 2 * inv * t * bendZ + t * t * f.z;
 
-      const char = Math.abs(f.x) > 45 && t > 0.45 ? (f.x < 0 ? "\\" : "/") : "|";
-      // Stems shoot upward rapidly between frames 8 and 36
-      pushPt(sx, sy, sz, char, GREENS, 8 + t * 28, 2);
+      const char = Math.abs(f.x) > 40 && t > 0.4 ? (f.x < 0 ? "\\" : "/") : "|";
+      // Above the wrapper rim (sy < -45), priority 3 keeps stems crisp and visible
+      const prio = sy < -45 ? 3 : 2;
+      pushPt(sx, sy, sz, char, GREENS, 6 + t * 30, prio);
+      pushPt(sx + 1.5, sy, sz, char, GREENS, 6 + t * 30, prio);
 
-      // Side leaves along upper stems
-      if (s === 18 || s === 24) {
-        const dir = s === 18 ? -1 : 1;
-        pushPt(sx + dir * 7, sy - 2, sz + 3, dir < 0 ? "~" : "*", GREENS, 22 + t * 18, 2);
+      // Leaves along the upper exposed stems
+      if (s === 34 || s === 42) {
+        const dir = s === 34 ? -1 : 1;
+        pushPt(sx + dir * 7, sy - 2, sz + 2, dir < 0 ? "~" : "*", GREENS, 22 + t * 18, 3);
       }
     }
 
@@ -177,7 +179,7 @@ function buildScene() {
   const layers = 36;
   for (let l = 0; l <= layers; l++) {
     const t = l / layers; // 0 = knot, 1 = wide rim
-    const y = 80 - t * 134;
+    const y = 80 - t * 112;
     const baseR = 8 + Math.pow(t, 0.85) * 108;
     const steps = Math.max(16, Math.floor(baseR * 0.75));
 
