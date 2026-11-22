@@ -265,7 +265,7 @@ function buildScene() {
         x: (c - (line.length - 1) / 2) * 8.5,
         y: 66 + r * 11,
         char: ch,
-        color: isCenter ? "#ff80ab" : "#4dd0e1",
+        color: "#ff80ab",
         rank: 6 + r * 2
       });
     }
