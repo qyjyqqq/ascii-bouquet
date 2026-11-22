@@ -148,23 +148,23 @@ function buildScene() {
   ];
 
   roseDome.forEach((rose) => {
-    // Build each rose as a 3D layered spiral cup so it looks full from every angle
-    const steps = 68;
+    // Build each rose as a 3D spherical bloom so it looks full from EVERY rotation angle
+    const steps = 85;
     for (let i = 0; i < steps; i++) {
-      const frac = i / steps; // 0 = center bud, 1 = outer petals
-      const spiralAngle = frac * Math.PI * 10;
-      const petalWave = 0.78 + 0.22 * Math.cos(spiralAngle * 2.5);
-      const rad = frac * rose.r * petalWave;
+      const frac = i / steps;
+      const phi = Math.acos(1 - frac * 0.85); // dome curvature from top center to outer rim
+      const theta = i * 2.39996; // golden angle spiral for even 3D petal distribution
+      const petalWave = 0.82 + 0.18 * Math.cos(theta * 5);
+      const rad = rose.r * petalWave;
 
-      const lx = Math.cos(spiralAngle) * rad;
-      const lz = Math.sin(spiralAngle) * rad;
-      // Cup shape: center sits slightly higher/deeper than outer petals
-      const ly = -Math.sin(frac * Math.PI) * (rose.r * 0.45);
+      const lx = Math.sin(phi) * Math.cos(theta) * rad;
+      const lz = Math.sin(phi) * Math.sin(theta) * rad;
+      const ly = -Math.cos(phi) * (rose.r * 0.65);
 
       let char;
-      if (frac < 0.22) char = "@";
-      else if (frac < 0.52) char = i % 2 === 0 ? "(" : ")";
-      else if (frac < 0.8) char = "=";
+      if (frac < 0.2) char = "@";
+      else if (frac < 0.5) char = i % 2 === 0 ? "(" : ")";
+      else if (frac < 0.78) char = "=";
       else char = "*";
 
       add3D(
@@ -177,6 +177,7 @@ function buildScene() {
       );
     }
   });
+
 
   // 5. Cute Mascot at the Bottom (stays facing viewer)
   const mascot = [
