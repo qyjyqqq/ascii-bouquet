@@ -247,10 +247,10 @@ function buildScene() {
 
     add3D(x, y, z, v > 0.78 ? "^" : ".", pick(WHITES), 34 + v * 22);
   }
-  // 6.5. Unicode Braille Ribbon Bow Between Bouquet Knot and Mascot
+  // 6.5. Blue-Pink Unicode Braille Ribbon Aligned With the Bouquet Vertex
   const ribbon = [
-    "⣾⣿⣦⣀⣴⣿⣷",
-    "⠛⣻⣿⠛⣿⣟⠛",
+    " ⣾⣿⣦⣀⣴⣿⣷ ",
+    " ⠛⣻⣿⠛⣿⣟⠛ ",
     "⢠⣾⣿⡏  ⢹⣿⣷⡄",
     "  ⡟    ⢻⡀ "
   ];
@@ -259,15 +259,18 @@ function buildScene() {
     for (let c = 0; c < line.length; c++) {
       const ch = line[c];
       if (ch === " ") continue;
+      // Center knot & inner tails in pink (#ff80ab), outer loops in blue/cyan (#4dd0e1)
+      const isCenter = c >= 3 && c <= 5;
       staticOverlay.push({
-        x: (c - line.length / 2 + 0.5) * 8.5,
-        y: 88 + r * 11,
+        x: (c - (line.length - 1) / 2) * 8.5,
+        y: 66 + r * 11,
         char: ch,
-        color: "#ff80ab",
+        color: isCenter ? "#ff80ab" : "#4dd0e1",
         rank: 6 + r * 2
       });
     }
   });
+
   // 7. Cute Curly Mascot at the Bottom
   const mascot = [
     "    . - ~ - .    ",
